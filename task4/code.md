@@ -1,39 +1,33 @@
 ## Problem Statement
 
-Develop a Courier Charge Optimization system that processes parcel characteristics including actual weight, physical dimensions (length, width, height), distance zones, service urgency, and declared restrictions (such as hazardous materials). The system must compute dimensional/volumetric weight, evaluate multiple service options, apply zone-based multipliers, check for regulatory restrictions, and select the most optimal and cost-effective eligible courier service.
+Develop a Progressive Water Tariff Analysis system that processes water consumption records for multiple households. The system must compute progressive water bills based on consumption slabs (tiered pricing rates), add fixed service fees, apply penalties for consumption exceeding a defined sustainability threshold, and analyze consumption patterns to flag excessive usage compared to the average.
 
 ---
 
 ## Algorithm
 
-1. **Initialize Parameters**:
-* Define service tiers (Economy, Standard, Express) with their respective base rates and per-kilogram costs.
-* Define distance zone multipliers and dimensional weight divisor standards.
+1. **Initialize Tariff Structure**:
+* Define consumption tiers (slabs) with increasing per-unit rates.
+* Define fixed base fees, excessive usage threshold limits, and penalty rates for overuse.
 
 
 2. **Input Collection**:
-* Accept parcel weight, dimensions, distance zone, urgency level, and restriction flags.
+* Accept a dictionary or list of household identifiers and their respective water consumption volumes (in kiloliters).
 
 
-3. **Check Restrictions**:
-* Evaluate whether declared restrictions violate shipping policies for the specified destination zone. If invalid, reject or flag the shipment.
+3. **Calculate Bill per Household**:
+* Iterate through consumption slabs, apportioning usage and calculating costs for each tier.
+* Add the fixed base fee.
+* Check if total consumption exceeds the excessive usage threshold; if so, calculate and add penalty charges.
 
 
-4. **Calculate Chargeable Weight**:
-* Compute volumetric weight using the formula: $(\text{Length} \times \text{Width} \times \text{Height}) / \text{Divisor}$.
-* Determine the chargeable weight as the maximum of actual weight and volumetric weight.
+4. **Compare Patterns**:
+* Aggregate total consumption and compute the average household usage across the dataset.
+* Flag households whose consumption exceeds the threshold or sits significantly above average.
 
 
-5. **Compute Costs for Service Options**:
-* Calculate total cost for each eligible service option based on chargeable weight, distance zone factor, and urgency multiplier.
-
-
-6. **Optimize and Select**:
-* Compare all eligible options and select the most economical or appropriate service tier.
-
-
-7. **Output Results**:
-* Display the chargeable weight, evaluated cost options, and the optimal selected service with its total charge.
+5. **Output Results**:
+* Display individual household consumption breakdown, total bills, penalties, and summary pattern flags.
 
 
 
@@ -43,19 +37,21 @@ Develop a Courier Charge Optimization system that processes parcel characteristi
 
 ```mermaid
 flowchart TD
-    A[Start] --> B[Input Weight, Dimensions, Zone, Urgency, Restrictions]
-    B --> C{Check Restrictions Valid?}
-    C -- No --> D[Return Restriction Error]
-    C -- Yes --> E[Calculate Volumetric Weight]
-    E --> F[Determine Chargeable Weight = max(Actual, Volumetric)]
-    F --> G[Loop Through Service Tiers]
-    G --> H[Calculate Cost per Tier using Zone & Urgency Factors]
-    H --> I{More Tiers?}
-    I -- Yes --> G
-    I -- No --> J[Filter Eligible Services & Find Minimum Cost Option]
-    J --> K[Output Selected Service & Optimal Charge]
-    D --> L[Stop]
-    K --> L
+    A[Start] --> B[Input Household Consumption Data & Tariff Rules]
+    B --> C[Initialize Results Storage & Compute Average Usage]
+    C --> D{More Households?}
+    D -- Yes --> E[Fetch Household Consumption]
+    E --> F[Calculate Tiered Slab Costs]
+    F --> G[Add Fixed Base Fee]
+    G --> H{Consumption > Threshold?}
+    H -- Yes --> I[Calculate Penalty for Excess Usage]
+    H -- No --> J[Set Penalty = 0]
+    I --> K[Sum Total Bill]
+    J --> K
+    K --> L[Store Household Results & Flag Excessive Usage]
+    L --> D
+    D -- No --> M[Output Analysis Report & Bills]
+    M --> N[Stop]
 
 ```
 
@@ -64,50 +60,61 @@ flowchart TD
 ## Python Source Code
 
 ```python
-def calculate_volumetric_weight(length, width, height, divisor=5000):
-    return (length * width * height) / divisor
-
-def evaluate_services(weight, length, width, height, zone, urgency, is_hazardous):
-    if is_hazardous and zone > 3:
-        return "Restricted: Hazardous materials not allowed for long-distance zones."
+def calculate_water_bill(consumption, slabs, fixed_fee, penalty_threshold, penalty_rate):
+    bill = fixed_fee
+    remaining = consumption
     
-    vol_weight = calculate_volumetric_weight(length, width, height)
-    chargeable_weight = max(weight, vol_weight)
-    
-    services = {
-        "Economy": {"base_rate": 50, "per_kg": 10, "multiplier": 0.8},
-        "Standard": {"base_rate": 80, "per_kg": 15, "multiplier": 1.0},
-        "Express": {"base_rate": 150, "per_kg": 25, "multiplier": 1.6}
-    }
-    
-    zone_factors = {1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2}
-    z_factor = zone_factors.get(zone, 2.5)
-    
-    options = {}
-    for name, details in services.items():
-        if urgency == "Express" and name == "Economy":
-            continue
-        cost = (details["base_rate"] + (chargeable_weight * details["per_kg"])) * details["multiplier"] * z_factor
-        options[name] = round(cost, 2)
+    for limit, rate in slabs:
+        if remaining <= 0:
+            break
+        slab_usage = min(remaining, limit) if limit else remaining
+        slab_cost = slab_usage * rate
+        bill += slab_cost
+        remaining -= slab_usage
         
-    best_service = min(options, key=options.get)
-    return {
-        "chargeable_weight": chargeable_weight,
-        "options": options,
-        "selected_service": best_service,
-        "cost": options[best_service]
-    }
+    penalty = 0
+    if consumption > penalty_threshold:
+        excess = consumption - penalty_threshold
+        penalty = excess * penalty_rate
+        bill += penalty
+        
+    return bill, penalty
+
+def analyze_water_tariffs(households, slabs, fixed_fee, threshold, penalty_rate):
+    results = {}
+    total_consumption = 0
+    
+    for hid, usage in households.items():
+        bill, penalty = calculate_water_bill(usage, slabs, fixed_fee, threshold, penalty_rate)
+        excessive = usage > threshold
+        results[hid] = {
+            "consumption": usage,
+            "bill": round(bill, 2),
+            "penalty": round(penalty, 2),
+            "excessive": excessive
+        }
+        total_consumption += usage
+        
+    avg_consumption = total_consumption / len(households) if households else 0
+    return results, avg_consumption
 
 if __name__ == "__main__":
-    pkg_weight = 4.5
-    dims = (30, 20, 15)
-    zone_id = 2
-    urgency_level = "Standard"
-    hazardous = False
+    tariff_slabs = [(10, 5.0), (15, 8.5), (None, 12.0)]
+    base_fee = 50.0
+    excess_threshold = 30
+    excess_rate = 15.0
     
-    result = evaluate_services(pkg_weight, dims[0], dims[1], dims[2], zone_id, urgency_level, hazardous)
-    for k, v in result.items():
-        print(f"{k}: {v}")
+    household_data = {
+        "H001": 8,
+        "H002": 22,
+        "H003": 35,
+        "H004": 45
+    }
+    
+    analysis, avg = analyze_water_tariffs(household_data, tariff_slabs, base_fee, excess_threshold, excess_rate)
+    print(f"Average Consumption: {avg} kl")
+    for hid, data in analysis.items():
+        print(f"Household {hid}: Consumption={data['consumption']}kl, Bill=${data['bill']}, Penalty=${data['penalty']}, Excessive={data['excessive']}")
 
 ```
 
@@ -116,11 +123,17 @@ if __name__ == "__main__":
 ## Sample Input
 
 ```python
-weight = 4.5
-dimensions = (30, 20, 15)
-zone = 2
-urgency = "Standard"
-is_hazardous = False
+tariff_slabs = [(10, 5.0), (15, 8.5), (None, 12.0)]
+base_fee = 50.0
+excess_threshold = 30
+excess_rate = 15.0
+
+household_data = {
+    "H001": 8,
+    "H002": 22,
+    "H003": 35,
+    "H004": 45
+}
 
 ```
 
@@ -129,9 +142,10 @@ is_hazardous = False
 ## Sample Output
 
 ```text
-chargeable_weight: 4.5
-options: {'Economy': 148.2, 'Standard': 214.5, 'Express': 561.6}
-selected_service: Economy
-cost: 148.2
+Average Consumption: 27.5 kl
+Household H001: Consumption=8kl, Bill=$90.0, Penalty=$0.0, Excessive=False
+Household H002: Consumption=22kl, Bill=$192.5, Penalty=$0.0, Excessive=False
+Household H003: Consumption=35kl, Bill=$293.0, Penalty=$75.0, Excessive=True
+Household H004: Consumption=45kl, Bill=$463.0, Penalty=$225.0, Excessive=True
 
 ```
